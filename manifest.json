@@ -1,7 +1,8 @@
 {
   "name": "OSR WhatsApp Direct",
   "short_name": "OSR WA",
-  "start_url": "/",
+  "start_url": "/osr-whatsapp-direct/",
+  "scope": "/osr-whatsapp-direct/",
   "display": "standalone",
   "background_color": "#f6f4ef",
   "theme_color": "#1a5c74",
