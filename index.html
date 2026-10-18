@@ -194,6 +194,24 @@
   .queue button { width: auto; margin: 0; padding: 6px 12px; font-size: 13px; flex-shrink: 0; }
   .queue-head { display: flex; justify-content: space-between; align-items: baseline; font-size: 13px; color: var(--muted); margin-top: 16px; }
 
+  /* Getting numbers in */
+  .tools { display: flex; flex-wrap: wrap; gap: 14px; margin: 2px 0 8px; }
+  .status { font-size: 12px; color: var(--green-dark); margin-top: 5px; min-height: 0; }
+  .reviewbox {
+    border: 1px solid var(--green); border-radius: 10px; padding: 14px;
+    margin: 4px 0 18px; background: #fbfdfb;
+  }
+  .reviewbox h2 { font-size: 15px; margin: 0 0 4px; }
+  .reviewbox .queue { max-height: 320px; overflow-y: auto; background: #fff; }
+  .reviewbox .queue li { justify-content: flex-start; cursor: pointer; }
+  .reviewbox .queue li.skip { color: var(--muted); }
+  .reviewbox .queue input { width: 18px; height: 18px; margin: 0; accent-color: var(--green); flex-shrink: 0; }
+  .reviewbox .tag { margin-left: auto; font-size: 11px; color: var(--muted); white-space: nowrap; }
+  .reviewbox .opt { display: flex; align-items: center; gap: 9px; font-weight: 500; font-size: 14px; margin: 8px 0 4px; }
+  .reviewbox .opt input { width: 18px; height: 18px; margin: 0; accent-color: var(--green); }
+  .btn-row { display: flex; gap: 10px; margin-top: 10px; }
+  .btn-row button { margin: 0; }
+
   /* Collapsible sections */
   details { border-top: 1px solid var(--line); padding-top: 14px; margin-top: 18px; }
   summary { cursor: pointer; font-weight: 700; font-size: 14px; color: var(--ink); }
@@ -231,13 +249,34 @@
     </div>
 
     <div class="field">
-      <div class="label-row">
-        <label for="number">Phone number(s)</label>
-        <button type="button" class="linkbtn" id="pickBtn" hidden>Pick from contacts</button>
+      <label for="number">Phone number(s)</label>
+      <div class="tools">
+        <button type="button" class="linkbtn" id="importBtn">📄 Import file</button>
+        <button type="button" class="linkbtn" id="photoBtn">📷 Read from photo</button>
+        <button type="button" class="linkbtn" id="pickBtn" hidden>👤 Pick from contacts</button>
       </div>
+      <input type="file" id="importInput" accept=".csv,.xlsx,.xls,.ods,.txt,.vcf,.pdf,.docx,image/*" hidden>
+      <input type="file" id="photoInput" accept="image/*" hidden>
       <textarea id="number" inputmode="tel" placeholder="e.g. (Ramesh)9480909009, 9876543210" autocomplete="off" style="min-height:64px;"></textarea>
-      <div class="hint">Separate numbers with commas. Put a name in brackets before a number — <code>(Ramesh)9480909009</code> — and that message will start "Dear Ramesh,". You can paste a list straight from Excel or a chat; it is tidied up for you.</div>
+      <div class="hint">Separate numbers with commas. Put a name in brackets before a number — <code>(Ramesh)9480909009</code> — and that message will start "Dear Ramesh,". Paste a whole web page, chat or document here and the numbers are picked out for you to check.</div>
+      <div class="status" id="importStatus" hidden></div>
       <div class="error" id="numError"></div>
+    </div>
+
+    <div class="reviewbox" id="reviewBox" hidden>
+      <h2 id="reviewTitle"></h2>
+      <div class="hint" id="reviewSource"></div>
+      <label class="opt"><input type="checkbox" id="mobileOnly" checked> Indian mobile numbers only</label>
+      <div class="tpl-actions">
+        <button type="button" class="linkbtn" id="reviewAll">Tick all</button>
+        <button type="button" class="linkbtn" id="reviewNone">Untick all</button>
+      </div>
+      <ul class="queue" id="reviewList"></ul>
+      <div class="hint">Untick anyone who isn't a patient. Check numbers read from a photo carefully — a 0 can be misread as an 8.</div>
+      <div class="btn-row">
+        <button type="button" id="reviewAdd">Add to list</button>
+        <button type="button" class="secondary" id="reviewCancel">Cancel</button>
+      </div>
     </div>
 
     <div class="field">
@@ -393,6 +432,8 @@
   }
 
   const digitCount = s => s.replace(/\D/g, '').length;
+  // "080-2345 6789" or "0821 2345678": a 0 plus a short STD code, so a landline.
+  const looksLandline = run => /^0[1-9]\d{1,2}[\s\-.\/]/.test(run.trim());
   const cleanName = s => s.replace(/[()]/g, '').replace(/^[\s:~\-–—.]+|[\s:~\-–—.]+$/g, '').trim();
 
   // Splits one comma-separated piece into number-like runs.
@@ -411,17 +452,22 @@
     return runs.filter(r => digitCount(r) >= 5);
   }
 
-  // Reads the box and returns [{name, raw, num}], duplicates removed.
+  const currentCc = () => ccInput.value.replace(/[^0-9]/g, '');
+
+  // Reads the numbers box.
+  function parseNumbers() { return parseText(numberInput.value); }
+
+  // Picks numbers out of any text and returns [{name, raw, num}], duplicates removed.
   // Accepts "(Ramesh)9480909009", "Ramesh 9480909009" or "Ramesh<tab>9480909009".
-  function parseNumbers() {
-    const cc = ccInput.value.replace(/[^0-9]/g, '');
+  function parseText(text) {
+    const cc = currentCc();
     const list = [];
     const byNum = new Map();
-    numberInput.value.split(/[,;\n]+/).forEach(piece => {
+    text.split(/[,;\n]+/).forEach(piece => {
       if (!piece.trim()) return;
       let name = '';
       let rest = piece;
-      const br = piece.match(/\(([^)]*)\)/);
+      const br = piece.match(/\(([^)\d]*)\)/);   // a name in brackets, not "(080)"
       if (br) {
         name = cleanName(br[1]);
         rest = piece.replace(br[0], ' ');
@@ -445,7 +491,7 @@
           if (!prev.name && entryName) prev.name = entryName;
           return;
         }
-        const entry = { name: entryName, raw: run, num };
+        const entry = { name: entryName, raw: run, num, landline: looksLandline(run) };
         if (num) byNum.set(num, entry);
         list.push(entry);
       });
@@ -630,12 +676,23 @@
     saveDraft();
     render();
   }));
-  numberInput.addEventListener('paste', () => setTimeout(() => {
-    tidyNumbers();
-    opened.clear();
-    saveDraft();
-    render();
-  }, 0));
+  // A paste with several numbers in it (a web page, chat or document) goes to
+  // the review panel; a single number is pasted into the box as normal.
+  numberInput.addEventListener('paste', (e) => {
+    const text = (e.clipboardData || window.clipboardData).getData('text') || '';
+    const found = parseText(text).filter(x => x.num);
+    if (found.length >= 2) {
+      e.preventDefault();
+      openReview(found, 'From what you pasted');
+      return;
+    }
+    setTimeout(() => {
+      tidyNumbers();
+      opened.clear();
+      saveDraft();
+      render();
+    }, 0);
+  });
   msgInput.addEventListener('input', () => { saveDraft(); render(); });
 
   numberInput.addEventListener('keydown', (e) => {
@@ -679,6 +736,230 @@
       }
     });
   }
+
+  /* ---------- Review numbers before adding them ---------- */
+
+  const reviewBox = $('reviewBox');
+  const reviewList = $('reviewList');
+  const mobileOnly = $('mobileOnly');
+  let reviewItems = [];   // [{name, num, tick, why}]
+
+  // Indian mobiles are 10 digits starting 6–9. Numbers from other countries are let through.
+  const isWantedNumber = it => !mobileOnly.checked || !it.num.startsWith('91') || (!it.landline && /^91[6-9]\d{9}$/.test(it.num));
+
+  function openReview(entries, source) {
+    const already = new Set(parseNumbers().filter(x => x.num).map(x => x.num));
+    reviewItems = entries.filter(x => x.num).map(x => ({ name: x.name, num: x.num, landline: x.landline, inList: already.has(x.num) }));
+    $('reviewSource').textContent = source;
+    applyReviewDefaults();
+    reviewBox.hidden = false;
+    reviewBox.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+
+  function applyReviewDefaults() {
+    reviewItems.forEach(it => {
+      it.why = it.inList ? 'already in list' : (isWantedNumber(it) ? '' : (it.landline ? 'landline' : 'not a mobile'));
+      it.tick = !it.why;
+    });
+    renderReview();
+  }
+
+  function renderReview() {
+    reviewList.innerHTML = '';
+    reviewItems.forEach(it => {
+      const li = document.createElement('li');
+      li.className = it.tick ? '' : 'skip';
+      const cb = document.createElement('input');
+      cb.type = 'checkbox';
+      cb.checked = it.tick;
+      cb.disabled = it.inList;
+      cb.setAttribute('aria-label', 'Include +' + it.num);
+      cb.addEventListener('change', () => { it.tick = cb.checked; renderReview(); });
+      li.addEventListener('click', (e) => { if (e.target !== cb && !cb.disabled) cb.click(); });
+      li.append(cb, label(it));
+      if (it.why) {
+        const tag = document.createElement('span');
+        tag.className = 'tag';
+        tag.textContent = it.why;
+        li.appendChild(tag);
+      }
+      reviewList.appendChild(li);
+    });
+    const ticked = reviewItems.filter(it => it.tick).length;
+    $('reviewTitle').textContent = reviewItems.length
+      ? `Found ${reviewItems.length} number${reviewItems.length === 1 ? '' : 's'}`
+      : 'No phone numbers found';
+    $('reviewAdd').disabled = !ticked;
+    $('reviewAdd').textContent = ticked ? `Add ${ticked} to list` : 'Nothing ticked';
+  }
+
+  function closeReview() {
+    reviewBox.hidden = true;
+    reviewItems = [];
+  }
+
+  mobileOnly.addEventListener('change', () => {
+    settings.mobileOnly = mobileOnly.checked;
+    saveSettings();
+    applyReviewDefaults();
+  });
+  $('reviewAll').addEventListener('click', () => { reviewItems.forEach(it => { if (!it.inList) it.tick = true; }); renderReview(); });
+  $('reviewNone').addEventListener('click', () => { reviewItems.forEach(it => { it.tick = false; }); renderReview(); });
+  $('reviewCancel').addEventListener('click', closeReview);
+  $('reviewAdd').addEventListener('click', () => {
+    const add = reviewItems.filter(it => it.tick).map(it => (it.name ? `(${it.name})` : '') + '+' + it.num);
+    const cur = numberInput.value.trim().replace(/,\s*$/, '');
+    numberInput.value = (cur ? cur + ', ' : '') + add.join(', ');
+    closeReview();
+    opened.clear();
+    saveDraft();
+    render();
+    numberInput.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  });
+
+  /* ---------- Import from a file or photo ---------- */
+
+  const importStatus = $('importStatus');
+  function showStatus(text) {
+    importStatus.hidden = !text;
+    importStatus.textContent = text || '';
+  }
+
+  // Libraries are only downloaded the first time a file type needs them.
+  const LIBS = {
+    xlsx: 'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js',
+    pdf: 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js',
+    pdfWorker: 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js',
+    docx: 'https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.6.0/mammoth.browser.min.js',
+    ocr: 'https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/tesseract.min.js'
+  };
+  const loaded = {};
+  function loadScript(url) {
+    if (!loaded[url]) {
+      loaded[url] = new Promise((resolve, reject) => {
+        const s = document.createElement('script');
+        s.src = url;
+        s.onload = resolve;
+        s.onerror = () => { delete loaded[url]; reject(new Error('Could not download the file reader. Check your internet connection.')); };
+        document.head.appendChild(s);
+      });
+    }
+    return loaded[url];
+  }
+
+  // Spreadsheet rows: the number cells become entries, and the first
+  // cell that looks like a name is used as the name.
+  function rowsToEntries(rows) {
+    const cc = currentCc();
+    const out = [];
+    rows.forEach(row => {
+      const cells = row.map(c => (typeof c === 'number' ? String(Math.round(c)) : String(c == null ? '' : c)).trim());
+      const name = cells.find(c => c.length <= 40 && /^[\p{L}][\p{L} .'-]*$/u.test(c)) || '';
+      let first = true;
+      cells.forEach(c => numberRuns(c).forEach(run => {
+        const num = normalize(run, cc);
+        if (num) { out.push({ name: first ? cleanName(name) : '', raw: run, num, landline: looksLandline(run) }); first = false; }
+      }));
+    });
+    // Remove repeats, keeping the first name seen.
+    const seen = new Map();
+    return out.filter(x => {
+      if (seen.has(x.num)) { if (!seen.get(x.num).name) seen.get(x.num).name = x.name; return false; }
+      seen.set(x.num, x);
+      return true;
+    });
+  }
+
+  // Contacts exported from a phone (.vcf).
+  function vcfToEntries(text) {
+    const rows = [];
+    text.split(/BEGIN:VCARD/i).forEach(card => {
+      const unfolded = card.replace(/\r?\n[ \t]/g, '');
+      const fn = (unfolded.match(/^FN[^:]*:(.*)$/im) || [])[1] || '';
+      const tels = [...unfolded.matchAll(/^TEL[^:]*:(.*)$/gim)].map(m => m[1].trim());
+      if (tels.length) rows.push([fn.replace(/\\,/g, ',').trim(), ...tels]);
+    });
+    return rowsToEntries(rows);
+  }
+
+  async function pdfText(file) {
+    await loadScript(LIBS.pdf);
+    pdfjsLib.GlobalWorkerOptions.workerSrc = LIBS.pdfWorker;
+    const doc = await pdfjsLib.getDocument({ data: await file.arrayBuffer() }).promise;
+    let text = '';
+    for (let p = 1; p <= doc.numPages; p++) {
+      showStatus(`Reading page ${p} of ${doc.numPages}…`);
+      const content = await (await doc.getPage(p)).getTextContent();
+      content.items.forEach(it => { text += it.str + (it.hasEOL ? '\n' : ' '); });
+      text += '\n';
+    }
+    return text;
+  }
+
+  async function photoText(file) {
+    await loadScript(LIBS.ocr);
+    showStatus('Getting the text reader ready (first time can take a minute)…');
+    const worker = await Tesseract.createWorker('eng', 1, {
+      logger: m => {
+        if (m.status === 'recognizing text') showStatus(`Reading the photo… ${Math.round(m.progress * 100)}%`);
+      }
+    });
+    try {
+      const { data } = await worker.recognize(file);
+      // Common misreads inside numbers: O→0, l/I→1.
+      return data.text.replace(/(?<=\d)[Oo](?=\d)|(?<=\d)[lI|](?=\d)/g, ch => (/[Oo]/.test(ch) ? '0' : '1'));
+    } finally {
+      worker.terminate();
+    }
+  }
+
+  async function importFile(file) {
+    const name = file.name.toLowerCase();
+    const ext = name.includes('.') ? name.split('.').pop() : '';
+    showStatus(`Reading ${file.name}…`);
+    errEl.textContent = '';
+    try {
+      let entries;
+      if (file.type.startsWith('image/')) {
+        entries = parseText(await photoText(file));
+      } else if (['csv', 'xlsx', 'xls', 'ods'].includes(ext)) {
+        await loadScript(LIBS.xlsx);
+        const wb = XLSX.read(await file.arrayBuffer(), { type: 'array' });
+        const rows = wb.SheetNames.flatMap(s => XLSX.utils.sheet_to_json(wb.Sheets[s], { header: 1, raw: true, defval: '' }));
+        entries = rowsToEntries(rows);
+      } else if (ext === 'vcf') {
+        entries = vcfToEntries(await file.text());
+      } else if (ext === 'pdf') {
+        entries = parseText(await pdfText(file));
+      } else if (ext === 'docx') {
+        await loadScript(LIBS.docx);
+        const res = await mammoth.extractRawText({ arrayBuffer: await file.arrayBuffer() });
+        entries = parseText(res.value);
+      } else if (ext === 'doc') {
+        throw new Error('Old .doc files can\'t be read here. Open it in Word or Google Docs and save it as .docx or PDF first.');
+      } else {
+        entries = parseText(await file.text());
+      }
+      showStatus('');
+      if (!entries.filter(x => x.num).length) {
+        errEl.textContent = `No phone numbers found in ${file.name}.` +
+          (ext === 'pdf' ? ' If it is a scanned PDF, take a screenshot and use Read from photo.' : '');
+        return;
+      }
+      openReview(entries, 'From ' + file.name);
+    } catch (err) {
+      showStatus('');
+      errEl.textContent = err.message || 'Could not read that file.';
+    }
+  }
+
+  $('importBtn').addEventListener('click', () => $('importInput').click());
+  $('photoBtn').addEventListener('click', () => $('photoInput').click());
+  ['importInput', 'photoInput'].forEach(id => $(id).addEventListener('change', (e) => {
+    const file = e.target.files[0];
+    e.target.value = '';
+    if (file) importFile(file);
+  }));
 
   /* ---------- Templates ---------- */
 
@@ -882,6 +1163,7 @@
   pruneRecent();
   writeJSON(KEY.recent, recent);
   loadDraft();
+  mobileOnly.checked = settings.mobileOnly !== false;
   renderApp();
   renderAddons();
   renderChips();
