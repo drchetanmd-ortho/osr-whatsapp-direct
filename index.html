@@ -9,24 +9,18 @@
 <link rel="apple-touch-icon" href="icon.png">
 <meta name="theme-color" content="#1a5c74">
 <style>
-  .brand-logo {
-    position: fixed;
-    top: 18px;
-    right: 18px;
-    width: 56px;
-    height: 56px;
-    border-radius: 14px;
-    box-shadow: 0 2px 10px rgba(0,0,0,0.18);
-  }
   :root {
     --ink: #14231e;
     --paper: #f6f4ef;
     --line: #d8d3c6;
     --green: #1f7a4d;
     --green-dark: #145334;
+    --green-soft: #eef6f1;
     --muted: #6b675c;
+    --red: #a3312b;
   }
   * { box-sizing: border-box; }
+  [hidden] { display: none !important; }
   body {
     margin: 0;
     min-height: 100vh;
@@ -34,17 +28,25 @@
     color: var(--ink);
     font-family: 'Segoe UI', ui-sans-serif, system-ui, sans-serif;
     display: flex;
-    align-items: center;
     justify-content: center;
-    padding: 24px;
+    padding: 24px 16px;
   }
   .card {
     width: 100%;
-    max-width: 440px;
+    max-width: 460px;
     background: #fff;
     border: 1px solid var(--line);
     border-radius: 14px;
-    padding: 32px 28px;
+    padding: 28px 24px;
+    align-self: flex-start;
+  }
+  .head { display: flex; gap: 14px; align-items: flex-start; justify-content: space-between; }
+  .brand-logo {
+    width: 52px;
+    height: 52px;
+    border-radius: 13px;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.18);
+    flex-shrink: 0;
   }
   .eyebrow {
     font-size: 12px;
@@ -63,16 +65,17 @@
   .sub {
     color: var(--muted);
     font-size: 14px;
-    margin: 0 0 26px;
+    margin: 0 0 22px;
     line-height: 1.5;
   }
-  label {
+  label, .label {
     display: block;
     font-size: 13px;
     font-weight: 600;
     margin-bottom: 6px;
     color: var(--ink);
   }
+  .label-row { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; }
   .field { margin-bottom: 18px; }
   input, textarea {
     width: 100%;
@@ -94,7 +97,9 @@
     font-size: 12px;
     color: var(--muted);
     margin-top: 5px;
+    line-height: 1.45;
   }
+  .hint code { background: var(--paper); padding: 1px 4px; border-radius: 4px; }
   button {
     width: 100%;
     background: var(--green);
@@ -104,6 +109,7 @@
     padding: 13px;
     font-size: 15px;
     font-weight: 700;
+    font-family: inherit;
     cursor: pointer;
     margin-top: 4px;
   }
@@ -113,50 +119,107 @@
     color: var(--muted);
     cursor: not-allowed;
   }
-  .error {
-    color: #a3312b;
-    font-size: 12px;
-    margin-top: 5px;
-    min-height: 14px;
-  }
   button.secondary {
     background: #fff;
     color: var(--green);
     border: 1px solid var(--green);
     margin-top: 10px;
   }
-  button.secondary:hover { background: #eef6f1; }
+  button.secondary:hover { background: var(--green-soft); }
+  .linkbtn {
+    background: none; color: var(--green); border: none; width: auto;
+    padding: 0; margin: 0; font-size: 13px; font-weight: 600; text-decoration: underline;
+  }
+  .linkbtn:hover { background: none; color: var(--green-dark); }
+  .error {
+    color: var(--red);
+    font-size: 12px;
+    margin-top: 5px;
+    min-height: 14px;
+  }
   .divider {
     height: 1px;
     background: var(--line);
-    margin: 26px 0 20px;
+    margin: 24px 0 18px;
   }
-  input[type="file"] {
-    padding: 8px;
-  }
+  input[type="file"] { padding: 8px; }
+
+  /* Country code */
   .cc-row { display: flex; align-items: center; gap: 8px; }
   .cc-row .plus { font-size: 18px; font-weight: 700; color: var(--muted); }
   .cc-row input { width: 90px; }
+
+  /* WhatsApp / Business switch */
+  .seg { display: flex; border: 1px solid var(--green); border-radius: 8px; overflow: hidden; }
+  .seg button {
+    margin: 0; border-radius: 0; background: #fff; color: var(--green);
+    padding: 9px; font-size: 14px;
+  }
+  .seg button.on { background: var(--green); color: #fff; }
+
+  /* Templates */
+  .chips { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 8px; }
+  .chip {
+    width: auto; margin: 0; padding: 6px 11px; font-size: 13px; font-weight: 600;
+    background: var(--green-soft); color: var(--green-dark);
+    border: 1px solid #cfe3d7; border-radius: 999px;
+  }
+  .chip:hover { background: #e0efe6; }
+  .chip.editing { background: #fff; border-style: dashed; }
+  .chip .x { margin-left: 6px; color: var(--red); font-weight: 700; }
+  .tpl-actions { display: flex; gap: 16px; margin-top: 6px; }
+
+  /* Add-ons */
+  .addons { display: flex; flex-direction: column; gap: 8px; margin-top: 4px; }
+  .addons label { display: flex; align-items: center; gap: 9px; font-weight: 500; margin: 0; font-size: 14px; }
+  .addons input { width: 18px; height: 18px; accent-color: var(--green); margin: 0; }
+  .addons label.off { color: var(--muted); }
+
+  /* Preview */
+  .preview {
+    white-space: pre-wrap; font-size: 13px; line-height: 1.45;
+    background: #e7f5ea; border-radius: 8px; padding: 10px 12px; margin-top: 6px;
+    border: 1px solid #cfe3d7; word-break: break-word;
+  }
+
+  /* Queue */
   .queue { list-style: none; padding: 0; margin: 8px 0 6px; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
   .queue li { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 9px 12px; border-top: 1px solid var(--line); font-size: 14px; }
   .queue li:first-child { border-top: none; }
-  .queue li.bad { color: #a3312b; background: #fbf0ef; }
+  .queue li.bad { color: var(--red); background: #fbf0ef; }
   .queue li.done .num { color: var(--muted); text-decoration: line-through; }
-  .queue li.next { background: #eef6f1; font-weight: 600; }
-  .queue .num { font-variant-numeric: tabular-nums; }
-  .queue button { width: auto; margin: 0; padding: 6px 12px; font-size: 13px; }
+  .queue li.next { background: var(--green-soft); font-weight: 600; }
+  .queue .num { font-variant-numeric: tabular-nums; min-width: 0; overflow-wrap: anywhere; }
+  .queue .who { display: block; font-size: 12px; color: var(--muted); font-weight: 500; }
+  .queue button { width: auto; margin: 0; padding: 6px 12px; font-size: 13px; flex-shrink: 0; }
   .queue-head { display: flex; justify-content: space-between; align-items: baseline; font-size: 13px; color: var(--muted); margin-top: 16px; }
-  .linkbtn { background: none; color: var(--green); border: none; width: auto; padding: 0; margin: 0; font-size: 13px; font-weight: 600; text-decoration: underline; }
-  .linkbtn:hover { background: none; color: var(--green-dark); }
-  [hidden] { display: none !important; }
+
+  /* Collapsible sections */
+  details { border-top: 1px solid var(--line); padding-top: 14px; margin-top: 18px; }
+  summary { cursor: pointer; font-weight: 700; font-size: 14px; color: var(--ink); }
+  details .inner { padding-top: 12px; }
+  details .field { margin-bottom: 12px; }
+  details input { font-size: 14px; padding: 9px 11px; }
 </style>
 </head>
 <body>
-  <img src="icon.png" alt="OSR WhatsApp logo" class="brand-logo">
   <div class="card">
-    <div class="eyebrow">Click to chat</div>
-    <h1>Message any number on WhatsApp</h1>
+    <div class="head">
+      <div>
+        <div class="eyebrow">Click to chat</div>
+        <h1>Message any number on WhatsApp</h1>
+      </div>
+      <img src="icon.png" alt="OSR WhatsApp logo" class="brand-logo">
+    </div>
     <p class="sub">No app install and no contact save. This uses WhatsApp's own link format — it works on any phone with WhatsApp installed.</p>
+
+    <div class="field" id="appField" hidden>
+      <span class="label">Open in</span>
+      <div class="seg" role="group" aria-label="Which WhatsApp app to open">
+        <button type="button" id="appWa" class="on">WhatsApp</button>
+        <button type="button" id="appBiz">WhatsApp Business</button>
+      </div>
+    </div>
 
     <div class="field">
       <label for="cc">Country code</label>
@@ -168,15 +231,39 @@
     </div>
 
     <div class="field">
-      <label for="number">Phone number(s)</label>
-      <textarea id="number" inputmode="tel" placeholder="e.g. 9480909009, 9876543210, 9123456789" autocomplete="off" style="min-height:64px;"></textarea>
-      <div class="hint">One number, or several separated by commas. A number typed with + or 00 in front keeps its own country code.</div>
+      <div class="label-row">
+        <label for="number">Phone number(s)</label>
+        <button type="button" class="linkbtn" id="pickBtn" hidden>Pick from contacts</button>
+      </div>
+      <textarea id="number" inputmode="tel" placeholder="e.g. (Ramesh)9480909009, 9876543210" autocomplete="off" style="min-height:64px;"></textarea>
+      <div class="hint">Separate numbers with commas. Put a name in brackets before a number — <code>(Ramesh)9480909009</code> — and that message will start "Dear Ramesh,". You can paste a list straight from Excel or a chat; it is tidied up for you.</div>
       <div class="error" id="numError"></div>
     </div>
 
     <div class="field">
       <label for="msg">Message (optional)</label>
-      <textarea id="msg" placeholder="Type what you'd like to send..."></textarea>
+      <div class="chips" id="chips"></div>
+      <textarea id="msg" placeholder="Type what you'd like to send, or tap a template above..."></textarea>
+      <div class="tpl-actions">
+        <button type="button" class="linkbtn" id="saveTplBtn">Save as template</button>
+        <button type="button" class="linkbtn" id="manageTplBtn">Edit templates</button>
+      </div>
+      <div class="hint" id="manageHint" hidden>Tap × to delete a template. To change one, tap it to load it, edit the message, then save it again with the same name.</div>
+    </div>
+
+    <div class="field">
+      <span class="label">Add to the end of the message</span>
+      <div class="addons">
+        <label id="addMapLbl"><input type="checkbox" id="addMap"> 📍 Clinic location</label>
+        <label id="addWebLbl"><input type="checkbox" id="addWeb"> 🌐 Website</label>
+        <label id="addReviewLbl"><input type="checkbox" id="addReview"> ⭐ Ask for a Google review</label>
+      </div>
+      <div class="hint" id="addonHint" hidden></div>
+    </div>
+
+    <div class="field" id="previewField" hidden>
+      <span class="label" id="previewLabel">Preview</span>
+      <div class="preview" id="preview"></div>
     </div>
 
     <button id="openBtn">Open chat in WhatsApp</button>
@@ -191,6 +278,37 @@
       <div class="hint">WhatsApp lets a link open only one chat at a time, and you tap Send inside each chat. After sending, come back here and tap the green button again for the next number.</div>
     </div>
 
+    <details id="recentBox">
+      <summary>Recent numbers</summary>
+      <div class="inner">
+        <ul class="queue" id="recent"></ul>
+        <div class="hint" id="recentEmpty">Numbers you open appear here for 30 days, so you can message them again.</div>
+        <div class="tpl-actions">
+          <button type="button" class="linkbtn" id="clearRecentBtn">Clear history</button>
+        </div>
+      </div>
+    </details>
+
+    <details>
+      <summary>Clinic settings</summary>
+      <div class="inner">
+        <div class="field">
+          <label for="mapUrl">Clinic location link</label>
+          <input id="mapUrl" type="url" placeholder="https://maps.app.goo.gl/...">
+        </div>
+        <div class="field">
+          <label for="webUrl">Website</label>
+          <input id="webUrl" type="url" placeholder="https://...">
+        </div>
+        <div class="field">
+          <label for="reviewUrl">Google review link</label>
+          <input id="reviewUrl" type="url" placeholder="https://g.page/r/.../review">
+          <div class="hint">Get it from your Google Business Profile: search your clinic on Google while signed in → "Ask for reviews" (or "Get more reviews") → copy the link.</div>
+        </div>
+        <button type="button" class="secondary" id="resetTplBtn" style="margin-top:4px;">Restore the starter templates</button>
+      </div>
+    </details>
+
     <div class="divider"></div>
 
     <label for="file">Attach a file</label>
@@ -201,26 +319,64 @@
   </div>
 
 <script>
-  const numberInput = document.getElementById('number');
-  const msgInput = document.getElementById('msg');
-  const btn = document.getElementById('openBtn');
-  const callBtn = document.getElementById('callBtn');
-  const errEl = document.getElementById('numError');
-  const fileInput = document.getElementById('file');
-  const shareBtn = document.getElementById('shareBtn');
-  const shareErr = document.getElementById('shareError');
+  const $ = id => document.getElementById(id);
+  const numberInput = $('number');
+  const msgInput = $('msg');
+  const ccInput = $('cc');
+  const btn = $('openBtn');
+  const callBtn = $('callBtn');
+  const errEl = $('numError');
+  const queueBox = $('queueBox');
+  const queueEl = $('queue');
+  const queueStatus = $('queueStatus');
+  const fileInput = $('file');
+  const shareBtn = $('shareBtn');
+  const shareErr = $('shareError');
 
-  const ccInput = document.getElementById('cc');
-  const queueBox = document.getElementById('queueBox');
-  const queueEl = document.getElementById('queue');
-  const queueStatus = document.getElementById('queueStatus');
-  const resetBtn = document.getElementById('resetBtn');
-  const STORE = 'osr-wa-draft';
+  const KEY = {
+    draft: 'osr-wa-draft',
+    templates: 'osr-wa-templates',
+    settings: 'osr-wa-settings',
+    recent: 'osr-wa-recent'
+  };
+  const RECENT_DAYS = 30;
+  const RECENT_MAX = 25;
+  const isAndroid = /Android/i.test(navigator.userAgent);
 
+  const STARTER_TEMPLATES = [
+    { title: 'Appointment reminder', text: 'This is a reminder of your appointment with Dr Chetan M Dojode on [date] at [time]. Please bring your previous reports, X-rays and scans.', addons: { map: true } },
+    { title: 'Reports ready', text: 'Your reports are ready. Please reply here or call the clinic to book a review appointment.', addons: {} },
+    { title: 'Post-op care', text: 'Please keep the dressing clean and dry, take your medicines as prescribed and keep the limb elevated. Contact us straight away if you have fever, increasing pain, swelling, redness or any discharge from the wound.', addons: {} },
+    { title: 'Clinic location', text: 'Here is the location of our clinic.', addons: { map: true } },
+    { title: 'Thank you', text: 'Thank you for visiting us. We hope you are feeling better.', addons: { review: true } }
+  ];
+  const DEFAULT_SETTINGS = {
+    app: 'wa',
+    mapUrl: 'https://maps.app.goo.gl/TtxVREZ6iqwr3K568',
+    webUrl: 'https://orthosportsrobotics.com',
+    reviewUrl: ''
+  };
+
+  function readJSON(key, fallback) {
+    try {
+      const v = JSON.parse(localStorage.getItem(key) || 'null');
+      return v == null ? fallback : v;
+    } catch (e) { return fallback; }
+  }
+  function writeJSON(key, value) {
+    try { localStorage.setItem(key, JSON.stringify(value)); } catch (e) {}
+  }
+
+  let settings = Object.assign({}, DEFAULT_SETTINGS, readJSON(KEY.settings, {}));
+  let templates = readJSON(KEY.templates, null) || STARTER_TEMPLATES.map(t => ({ ...t }));
+  let recent = readJSON(KEY.recent, []);
   // Numbers already opened in WhatsApp during this batch.
   let opened = new Set();
+  let managing = false;
 
-  // Turns one typed entry into a full international number (digits only),
+  /* ---------- Reading the numbers box ---------- */
+
+  // Turns one typed number into a full international number (digits only),
   // or null if it can't be a valid WhatsApp number.
   function normalize(entry, cc) {
     const t = entry.trim();
@@ -236,59 +392,169 @@
     return d.length >= 8 && d.length <= 15 ? d : null;
   }
 
-  // Reads the box and returns [{raw, num}], duplicates removed.
+  const digitCount = s => s.replace(/\D/g, '').length;
+  const cleanName = s => s.replace(/[()]/g, '').replace(/^[\s:~\-–—.]+|[\s:~\-–—.]+$/g, '').trim();
+
+  // Splits one comma-separated piece into number-like runs.
+  // "9480909009 9876543210" (two numbers with a space) becomes two runs,
+  // while "+91 94809 09009" stays one.
+  function numberRuns(text) {
+    const runs = [];
+    (text.match(/\+?\d[\d\s\-.]*\d/g) || []).forEach(run => {
+      if (digitCount(run) > 15) {
+        const parts = run.trim().split(/\s+/);
+        if (parts.every(p => digitCount(p) >= 8)) { runs.push(...parts); return; }
+      }
+      runs.push(run.trim());
+    });
+    // Ignore short digit groups such as dates and times in a pasted chat.
+    return runs.filter(r => digitCount(r) >= 5);
+  }
+
+  // Reads the box and returns [{name, raw, num}], duplicates removed.
+  // Accepts "(Ramesh)9480909009", "Ramesh 9480909009" or "Ramesh<tab>9480909009".
   function parseNumbers() {
     const cc = ccInput.value.replace(/[^0-9]/g, '');
-    const seen = new Set();
     const list = [];
-    numberInput.value.split(/[,;\n]+/).forEach(raw => {
-      if (!raw.trim()) return;
-      const num = normalize(raw, cc);
-      if (num && seen.has(num)) return;
-      if (num) seen.add(num);
-      list.push({ raw: raw.trim(), num });
+    const byNum = new Map();
+    numberInput.value.split(/[,;\n]+/).forEach(piece => {
+      if (!piece.trim()) return;
+      let name = '';
+      let rest = piece;
+      const br = piece.match(/\(([^)]*)\)/);
+      if (br) {
+        name = cleanName(br[1]);
+        rest = piece.replace(br[0], ' ');
+      }
+      const runs = numberRuns(rest);
+      if (!runs.length) {
+        // Only flag pieces that look like a mistyped phone number,
+        // not dates, times or names in a pasted chat.
+        if (/^[\s\d+\-.]{5,}$/.test(rest) && digitCount(rest) >= 5) list.push({ name, raw: piece.trim(), num: null });
+        return;
+      }
+      if (!br && runs.length === 1) {
+        const leftover = cleanName(rest.replace(runs[0], ' '));
+        if (/^[\p{L}][\p{L} .'-]*$/u.test(leftover)) name = leftover;
+      }
+      runs.forEach((run, i) => {
+        const num = normalize(run, cc);
+        const entryName = i === 0 ? name : '';
+        if (num && byNum.has(num)) {
+          const prev = byNum.get(num);
+          if (!prev.name && entryName) prev.name = entryName;
+          return;
+        }
+        const entry = { name: entryName, raw: run, num };
+        if (num) byNum.set(num, entry);
+        list.push(entry);
+      });
     });
     return list;
   }
 
-  function urlFor(num) {
-    const msg = encodeURIComponent(msgInput.value.trim());
-    return `https://wa.me/${num}${msg ? '?text=' + msg : ''}`;
+  // Rewrites the box in the "(Name)+91..., ..." form after a paste.
+  function tidyNumbers() {
+    const list = parseNumbers();
+    if (!list.length) return;
+    numberInput.value = list
+      .map(x => (x.name ? `(${x.name})` : '') + (x.num ? '+' + x.num : x.raw))
+      .join(', ');
   }
 
-  // Kept on the phone so the list survives switching to WhatsApp and back.
-  function save() {
-    try {
-      localStorage.setItem(STORE, JSON.stringify({
-        cc: ccInput.value, numbers: numberInput.value,
-        msg: msgInput.value, opened: [...opened]
-      }));
-    } catch (e) {}
+  /* ---------- Building the message ---------- */
+
+  const addonBoxes = { map: $('addMap'), web: $('addWeb'), review: $('addReview') };
+  const addonUrl = { map: 'mapUrl', web: 'webUrl', review: 'reviewUrl' };
+
+  function addonText() {
+    const lines = [];
+    if (addonBoxes.map.checked && settings.mapUrl) lines.push('📍 Clinic location: ' + settings.mapUrl);
+    if (addonBoxes.web.checked && settings.webUrl) lines.push('🌐 ' + settings.webUrl);
+    if (addonBoxes.review.checked && settings.reviewUrl) lines.push('⭐ If you were happy with your care, we would be grateful for a Google review: ' + settings.reviewUrl);
+    return lines.join('\n');
   }
 
-  function load() {
-    try {
-      const d = JSON.parse(localStorage.getItem(STORE) || 'null');
-      if (!d) return;
-      ccInput.value = d.cc || '91';
-      numberInput.value = d.numbers || '';
-      msgInput.value = d.msg || '';
-      opened = new Set(d.opened || []);
-    } catch (e) {}
+  // The full text for one person. Write {name} anywhere to place the name
+  // yourself; otherwise a named person gets "Dear Name," at the top.
+  function messageFor(name) {
+    let body = msgInput.value.trim();
+    if (body.includes('{name}')) {
+      body = name ? body.replace(/\{name\}/g, name) : body.replace(/\s*\{name\}/g, '');
+    } else if (name && body) {
+      body = `Dear ${name},\n\n${body}`;
+    } else if (name) {
+      body = `Dear ${name},`;
+    }
+    const extra = addonText();
+    return [body, extra].filter(Boolean).join(body && extra ? '\n\n' : '');
   }
 
-  // Redraws the list and button label; returns the next number to open.
+  function urlFor(num, name) {
+    const text = messageFor(name);
+    if (settings.app === 'biz' && isAndroid) {
+      const fallback = `https://wa.me/${num}${text ? '?text=' + encodeURIComponent(text) : ''}`;
+      return `intent://send/?phone=${num}${text ? '&text=' + encodeURIComponent(text) : ''}` +
+        `#Intent;scheme=whatsapp;package=com.whatsapp.w4b;S.browser_fallback_url=${encodeURIComponent(fallback)};end`;
+    }
+    return `https://wa.me/${num}${text ? '?text=' + encodeURIComponent(text) : ''}`;
+  }
+
+  function launch(num, name) {
+    rememberRecent(num, name);
+    const url = urlFor(num, name);
+    if (url.startsWith('intent:')) window.location.href = url;
+    else window.open(url, '_blank');
+  }
+
+  /* ---------- Saving the draft ---------- */
+
+  function saveDraft() {
+    writeJSON(KEY.draft, {
+      cc: ccInput.value, numbers: numberInput.value, msg: msgInput.value,
+      opened: [...opened],
+      addons: { map: addonBoxes.map.checked, web: addonBoxes.web.checked, review: addonBoxes.review.checked }
+    });
+  }
+
+  function loadDraft() {
+    const d = readJSON(KEY.draft, null);
+    if (!d) return;
+    ccInput.value = d.cc || '91';
+    numberInput.value = d.numbers || '';
+    msgInput.value = d.msg || '';
+    opened = new Set(d.opened || []);
+    Object.keys(addonBoxes).forEach(k => { addonBoxes[k].checked = !!(d.addons && d.addons[k]); });
+  }
+
+  /* ---------- Main list and button ---------- */
+
+  function label(x) {
+    const span = document.createElement('span');
+    span.className = 'num';
+    span.textContent = '+' + x.num;
+    if (x.name) {
+      const who = document.createElement('span');
+      who.className = 'who';
+      who.textContent = x.name;
+      span.prepend(who);
+    }
+    return span;
+  }
+
+  // Redraws everything that depends on the inputs; returns the next entry to open.
   function render() {
     const list = parseNumbers();
     const good = list.filter(x => x.num);
     const next = good.find(x => !opened.has(x.num));
     errEl.textContent = '';
+    renderPreview(next || good[0]);
 
     if (list.length < 2) {
       queueBox.hidden = true;
       callBtn.hidden = false;
       btn.disabled = false;
-      btn.textContent = 'Open chat in WhatsApp';
+      btn.textContent = 'Open chat in WhatsApp' + (settings.app === 'biz' && isAndroid ? ' Business' : '');
       return next;
     }
 
@@ -297,22 +563,21 @@
     queueEl.innerHTML = '';
     list.forEach(x => {
       const li = document.createElement('li');
-      const span = document.createElement('span');
-      span.className = 'num';
       if (!x.num) {
         li.className = 'bad';
+        const span = document.createElement('span');
+        span.className = 'num';
         span.textContent = x.raw + ' — not a valid number';
         li.appendChild(span);
       } else {
         const done = opened.has(x.num);
         li.className = done ? 'done' : (x === next ? 'next' : '');
-        span.textContent = '+' + x.num;
         const b = document.createElement('button');
         b.type = 'button';
         b.className = 'secondary';
         b.textContent = done ? 'Open again' : 'Open';
-        b.addEventListener('click', () => openNum(x.num));
-        li.append(span, b);
+        b.addEventListener('click', () => openEntry(x));
+        li.append(label(x), b);
       }
       queueEl.appendChild(li);
     });
@@ -320,16 +585,23 @@
     queueStatus.textContent = `${doneCount} of ${good.length} opened`;
     btn.disabled = !next;
     btn.textContent = next
-      ? `Open chat ${good.indexOf(next) + 1} of ${good.length} in WhatsApp`
+      ? `Open chat ${good.indexOf(next) + 1} of ${good.length}` + (next.name ? ` (${next.name})` : '')
       : 'All chats opened ✓';
     return next;
   }
 
-  function openNum(num) {
-    opened.add(num);
-    save();
+  function renderPreview(entry) {
+    const text = messageFor(entry ? entry.name : '');
+    $('previewField').hidden = !text;
+    $('previewLabel').textContent = entry && entry.name ? `Preview — as ${entry.name} will see it` : 'Preview';
+    $('preview').textContent = text;
+  }
+
+  function openEntry(x) {
+    opened.add(x.num);
+    saveDraft();
     render();
-    window.open(urlFor(num), '_blank');
+    launch(x.num, x.name);
   }
 
   function openNext() {
@@ -339,12 +611,12 @@
       return;
     }
     if (list.length === 1) {
-      if (list[0].num) window.open(urlFor(list[0].num), '_blank');
+      if (list[0].num) launch(list[0].num, list[0].name);
       else errEl.textContent = 'That doesn\'t look like a valid number. Check the country code and digits.';
       return;
     }
     const next = render();
-    if (next) openNum(next.num);
+    if (next) openEntry(next);
   }
 
   btn.addEventListener('click', openNext);
@@ -355,26 +627,235 @@
   // Changing the numbers or country code starts a fresh batch.
   [numberInput, ccInput].forEach(el => el.addEventListener('input', () => {
     opened.clear();
-    save();
+    saveDraft();
     render();
   }));
-  msgInput.addEventListener('input', save);
-
-  resetBtn.addEventListener('click', () => {
+  numberInput.addEventListener('paste', () => setTimeout(() => {
+    tidyNumbers();
     opened.clear();
-    numberInput.value = '';
-    msgInput.value = '';
-    save();
+    saveDraft();
     render();
-    numberInput.focus();
-  });
+  }, 0));
+  msgInput.addEventListener('input', () => { saveDraft(); render(); });
 
   numberInput.addEventListener('keydown', (e) => {
     if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); btn.click(); }
   });
 
-  load();
-  render();
+  $('resetBtn').addEventListener('click', () => {
+    opened.clear();
+    numberInput.value = '';
+    msgInput.value = '';
+    Object.values(addonBoxes).forEach(b => { b.checked = false; });
+    saveDraft();
+    render();
+    numberInput.focus();
+  });
+
+  /* ---------- Pick from phone contacts (Android Chrome) ---------- */
+
+  const pickBtn = $('pickBtn');
+  if ('contacts' in navigator && 'select' in navigator.contacts) {
+    pickBtn.hidden = false;
+    pickBtn.addEventListener('click', async () => {
+      try {
+        const picked = await navigator.contacts.select(['name', 'tel'], { multiple: true });
+        const added = picked
+          .filter(c => c.tel && c.tel.length)
+          .map(c => {
+            const name = cleanName((c.name && c.name[0]) || '');
+            const tel = c.tel[0].replace(/[^\d+]/g, '');
+            return (name ? `(${name})` : '') + tel;
+          });
+        if (!added.length) return;
+        const cur = numberInput.value.trim().replace(/,\s*$/, '');
+        numberInput.value = (cur ? cur + ', ' : '') + added.join(', ');
+        tidyNumbers();
+        opened.clear();
+        saveDraft();
+        render();
+      } catch (err) {
+        if (err.name !== 'AbortError') errEl.textContent = 'Could not open your contacts.';
+      }
+    });
+  }
+
+  /* ---------- Templates ---------- */
+
+  function saveTemplates() { writeJSON(KEY.templates, templates); }
+
+  function renderChips() {
+    const box = $('chips');
+    box.innerHTML = '';
+    templates.forEach((t, i) => {
+      const c = document.createElement('button');
+      c.type = 'button';
+      c.className = 'chip' + (managing ? ' editing' : '');
+      c.textContent = t.title;
+      if (managing) {
+        const x = document.createElement('span');
+        x.className = 'x';
+        x.textContent = '×';
+        x.setAttribute('aria-label', 'Delete ' + t.title);
+        x.addEventListener('click', (e) => {
+          e.stopPropagation();
+          if (!confirm(`Delete the "${t.title}" template?`)) return;
+          templates.splice(i, 1);
+          saveTemplates();
+          renderChips();
+        });
+        c.appendChild(x);
+      }
+      c.addEventListener('click', () => {
+        msgInput.value = t.text;
+        Object.keys(addonBoxes).forEach(k => {
+          addonBoxes[k].checked = !!(t.addons && t.addons[k]) && !addonBoxes[k].disabled;
+        });
+        saveDraft();
+        render();
+      });
+      box.appendChild(c);
+    });
+    $('manageTplBtn').textContent = managing ? 'Done' : 'Edit templates';
+    $('manageHint').hidden = !managing;
+  }
+
+  $('saveTplBtn').addEventListener('click', () => {
+    const text = msgInput.value.trim();
+    if (!text) { alert('Type a message first, then save it as a template.'); return; }
+    const title = (prompt('Template name (short, e.g. "Fees"):') || '').trim();
+    if (!title) return;
+    const addons = { map: addonBoxes.map.checked, web: addonBoxes.web.checked, review: addonBoxes.review.checked };
+    const existing = templates.findIndex(t => t.title.toLowerCase() === title.toLowerCase());
+    if (existing >= 0) {
+      if (!confirm(`Replace the existing "${templates[existing].title}" template?`)) return;
+      templates[existing] = { title: templates[existing].title, text, addons };
+    } else {
+      templates.push({ title, text, addons });
+    }
+    saveTemplates();
+    renderChips();
+  });
+
+  $('manageTplBtn').addEventListener('click', () => { managing = !managing; renderChips(); });
+
+  $('resetTplBtn').addEventListener('click', () => {
+    if (!confirm('Put back the starter templates? Templates you saved yourself are kept.')) return;
+    STARTER_TEMPLATES.forEach(s => {
+      if (!templates.some(t => t.title.toLowerCase() === s.title.toLowerCase())) templates.push({ ...s });
+    });
+    saveTemplates();
+    renderChips();
+  });
+
+  /* ---------- Clinic settings and add-ons ---------- */
+
+  function saveSettings() { writeJSON(KEY.settings, settings); }
+
+  function renderAddons() {
+    const missing = [];
+    Object.keys(addonBoxes).forEach(k => {
+      const has = !!settings[addonUrl[k]];
+      addonBoxes[k].disabled = !has;
+      if (!has) addonBoxes[k].checked = false;
+      $(addonBoxes[k].id + 'Lbl').classList.toggle('off', !has);
+      if (!has) missing.push({ map: 'location', web: 'website', review: 'Google review' }[k]);
+    });
+    const hint = $('addonHint');
+    hint.hidden = !missing.length;
+    hint.textContent = missing.length ? `Add your ${missing.join(' and ')} link in Clinic settings below to use ${missing.length > 1 ? 'these' : 'this'}.` : '';
+  }
+
+  ['mapUrl', 'webUrl', 'reviewUrl'].forEach(k => {
+    const el = $(k);
+    el.value = settings[k] || '';
+    el.addEventListener('input', () => {
+      settings[k] = el.value.trim();
+      saveSettings();
+      renderAddons();
+      render();
+    });
+  });
+  Object.values(addonBoxes).forEach(b => b.addEventListener('change', () => { saveDraft(); render(); }));
+
+  /* ---------- WhatsApp or WhatsApp Business ---------- */
+
+  function renderApp() {
+    $('appWa').classList.toggle('on', settings.app !== 'biz');
+    $('appBiz').classList.toggle('on', settings.app === 'biz');
+  }
+  if (isAndroid) {
+    $('appField').hidden = false;
+    $('appWa').addEventListener('click', () => { settings.app = 'wa'; saveSettings(); renderApp(); render(); });
+    $('appBiz').addEventListener('click', () => { settings.app = 'biz'; saveSettings(); renderApp(); render(); });
+  }
+
+  /* ---------- Recent numbers ---------- */
+
+  function pruneRecent() {
+    const cutoff = Date.now() - RECENT_DAYS * 864e5;
+    recent = recent.filter(r => r.ts >= cutoff).slice(0, RECENT_MAX);
+  }
+
+  function rememberRecent(num, name) {
+    const prev = recent.find(r => r.num === num);
+    recent = recent.filter(r => r.num !== num);
+    recent.unshift({ num, name: name || (prev && prev.name) || '', ts: Date.now() });
+    pruneRecent();
+    writeJSON(KEY.recent, recent);
+    renderRecent();
+  }
+
+  function ago(ts) {
+    const m = Math.round((Date.now() - ts) / 6e4);
+    if (m < 1) return 'just now';
+    if (m < 60) return m + ' min ago';
+    const h = Math.round(m / 60);
+    if (h < 24) return h + ' h ago';
+    const d = Math.round(h / 24);
+    return d === 1 ? 'yesterday' : d + ' days ago';
+  }
+
+  function renderRecent() {
+    const ul = $('recent');
+    ul.innerHTML = '';
+    ul.hidden = !recent.length;
+    $('recentEmpty').hidden = !!recent.length;
+    $('clearRecentBtn').hidden = !recent.length;
+    recent.forEach(r => {
+      const li = document.createElement('li');
+      const span = label(r);
+      const when = document.createElement('span');
+      when.className = 'who';
+      when.textContent = ago(r.ts);
+      span.appendChild(when);
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'secondary';
+      b.textContent = 'Add';
+      b.addEventListener('click', () => {
+        const already = parseNumbers().some(x => x.num === r.num);
+        if (!already) {
+          const cur = numberInput.value.trim().replace(/,\s*$/, '');
+          numberInput.value = (cur ? cur + ', ' : '') + (r.name ? `(${r.name})` : '') + '+' + r.num;
+          saveDraft();
+          render();
+        }
+        numberInput.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      });
+      li.append(span, b);
+      ul.appendChild(li);
+    });
+  }
+
+  $('clearRecentBtn').addEventListener('click', () => {
+    if (!confirm('Delete all recent numbers from this phone?')) return;
+    recent = [];
+    writeJSON(KEY.recent, recent);
+    renderRecent();
+  });
+
+  /* ---------- File sharing ---------- */
 
   shareBtn.addEventListener('click', async () => {
     shareErr.textContent = '';
@@ -395,6 +876,17 @@
       shareErr.textContent = 'File sharing isn\'t supported in this browser. Try Chrome on Android.';
     }
   });
+
+  /* ---------- Start ---------- */
+
+  pruneRecent();
+  writeJSON(KEY.recent, recent);
+  loadDraft();
+  renderApp();
+  renderAddons();
+  renderChips();
+  renderRecent();
+  render();
 </script>
 </body>
 </html>
