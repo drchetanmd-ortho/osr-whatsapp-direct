@@ -255,8 +255,8 @@
         <button type="button" class="linkbtn" id="photoBtn">📷 Read from photo</button>
         <button type="button" class="linkbtn" id="pickBtn" hidden>👤 Pick from contacts</button>
       </div>
-      <input type="file" id="importInput" accept=".csv,.xlsx,.xls,.ods,.txt,.vcf,.pdf,.docx,image/*" hidden>
-      <input type="file" id="photoInput" accept="image/*" hidden>
+      <input type="file" id="importInput" accept=".csv,.xlsx,.xls,.ods,.txt,.vcf,.pdf,.docx,image/*" multiple hidden>
+      <input type="file" id="photoInput" accept="image/*" multiple hidden>
       <textarea id="number" inputmode="tel" placeholder="e.g. (Ramesh)9480909009, 9876543210" autocomplete="off" style="min-height:64px;"></textarea>
       <div class="hint">Separate numbers with commas. Put a name in brackets before a number — <code>(Ramesh)9480909009</code> — and that message will start "Dear Ramesh,". Paste a whole web page, chat or document here and the numbers are picked out for you to check.</div>
       <div class="status" id="importStatus" hidden></div>
@@ -730,21 +730,15 @@
     pickBtn.hidden = false;
     pickBtn.addEventListener('click', async () => {
       try {
+        // Tick as many contacts as you like; every number they have goes to the
+        // review list, where landlines are flagged.
         const picked = await navigator.contacts.select(['name', 'tel'], { multiple: true });
-        const added = picked
+        const rows = picked
           .filter(c => c.tel && c.tel.length)
-          .map(c => {
-            const name = cleanName((c.name && c.name[0]) || '');
-            const tel = c.tel[0].replace(/[^\d+]/g, '');
-            return (name ? `(${name})` : '') + tel;
-          });
-        if (!added.length) return;
-        const cur = numberInput.value.trim().replace(/,\s*$/, '');
-        numberInput.value = (cur ? cur + ', ' : '') + added.join(', ');
-        tidyNumbers();
-        opened.clear();
-        saveDraft();
-        render();
+          .map(c => [cleanName((c.name && c.name[0]) || ''), ...c.tel]);
+        if (!rows.length) return;
+        const entries = rowsToEntries(rows);
+        if (entries.length) openReview(entries, `From ${rows.length} contact${rows.length === 1 ? '' : 's'}`);
       } catch (err) {
         if (err.name !== 'AbortError') errEl.textContent = 'Could not open your contacts.';
       }
@@ -869,10 +863,10 @@
     rows.forEach(row => {
       const cells = row.map(c => (typeof c === 'number' ? String(Math.round(c)) : String(c == null ? '' : c)).trim());
       const name = cells.find(c => c.length <= 40 && /^[\p{L}][\p{L} .'-]*$/u.test(c)) || '';
-      let first = true;
+      // Every number on a row belongs to the same person.
       cells.forEach(c => numberRuns(c).forEach(run => {
         const num = normalize(run, cc);
-        if (num) { out.push({ name: first ? cleanName(name) : '', raw: run, num, landline: looksLandline(run) }); first = false; }
+        if (num) out.push({ name: cleanName(name), raw: run, num, landline: looksLandline(run) });
       }));
     });
     // Remove repeats, keeping the first name seen.
@@ -910,69 +904,104 @@
     return text;
   }
 
-  async function photoText(file) {
+  // One text reader is shared by all photos in a batch, so it only starts once.
+  async function ocrWorker() {
     await loadScript(LIBS.ocr);
     showStatus('Getting the text reader ready (first time can take a minute)…');
-    const worker = await Tesseract.createWorker('eng', 1, {
+    return Tesseract.createWorker('eng', 1, {
       logger: m => {
-        if (m.status === 'recognizing text') showStatus(`Reading the photo… ${Math.round(m.progress * 100)}%`);
+        if (m.status === 'recognizing text' && ocrLabel) showStatus(`${ocrLabel}… ${Math.round(m.progress * 100)}%`);
       }
     });
-    try {
-      const { data } = await worker.recognize(file);
-      // Common misreads inside numbers: O→0, l/I→1.
-      return data.text.replace(/(?<=\d)[Oo](?=\d)|(?<=\d)[lI|](?=\d)/g, ch => (/[Oo]/.test(ch) ? '0' : '1'));
-    } finally {
-      worker.terminate();
-    }
+  }
+  let ocrLabel = '';
+
+  async function photoText(worker, file) {
+    const { data } = await worker.recognize(file);
+    // Common misreads inside numbers: O→0, l/I→1.
+    return data.text.replace(/(?<=\d)[Oo](?=\d)|(?<=\d)[lI|](?=\d)/g, ch => (/[Oo]/.test(ch) ? '0' : '1'));
   }
 
-  async function importFile(file) {
-    const name = file.name.toLowerCase();
-    const ext = name.includes('.') ? name.split('.').pop() : '';
-    showStatus(`Reading ${file.name}…`);
+  // Reads one file and returns its entries. getWorker starts the photo reader on demand.
+  async function entriesFromFile(file, getWorker) {
+    const ext = file.name.toLowerCase().includes('.') ? file.name.toLowerCase().split('.').pop() : '';
+    if (file.type.startsWith('image/')) {
+      return parseText(await photoText(await getWorker(), file));
+    } else if (['csv', 'xlsx', 'xls', 'ods'].includes(ext)) {
+      await loadScript(LIBS.xlsx);
+      const wb = XLSX.read(await file.arrayBuffer(), { type: 'array' });
+      const rows = wb.SheetNames.flatMap(s => XLSX.utils.sheet_to_json(wb.Sheets[s], { header: 1, raw: true, defval: '' }));
+      return rowsToEntries(rows);
+    } else if (ext === 'vcf') {
+      return vcfToEntries(await file.text());
+    } else if (ext === 'pdf') {
+      return parseText(await pdfText(file));
+    } else if (ext === 'docx') {
+      await loadScript(LIBS.docx);
+      const res = await mammoth.extractRawText({ arrayBuffer: await file.arrayBuffer() });
+      return parseText(res.value);
+    } else if (ext === 'doc') {
+      throw new Error('old .doc files can\'t be read — save it as .docx or PDF first');
+    }
+    return parseText(await file.text());
+  }
+
+  async function importFiles(files) {
     errEl.textContent = '';
+    let worker = null;
+    const getWorker = async () => (worker = worker || await ocrWorker());
+    const all = [];
+    const problems = [];
+    const empty = [];
     try {
-      let entries;
-      if (file.type.startsWith('image/')) {
-        entries = parseText(await photoText(file));
-      } else if (['csv', 'xlsx', 'xls', 'ods'].includes(ext)) {
-        await loadScript(LIBS.xlsx);
-        const wb = XLSX.read(await file.arrayBuffer(), { type: 'array' });
-        const rows = wb.SheetNames.flatMap(s => XLSX.utils.sheet_to_json(wb.Sheets[s], { header: 1, raw: true, defval: '' }));
-        entries = rowsToEntries(rows);
-      } else if (ext === 'vcf') {
-        entries = vcfToEntries(await file.text());
-      } else if (ext === 'pdf') {
-        entries = parseText(await pdfText(file));
-      } else if (ext === 'docx') {
-        await loadScript(LIBS.docx);
-        const res = await mammoth.extractRawText({ arrayBuffer: await file.arrayBuffer() });
-        entries = parseText(res.value);
-      } else if (ext === 'doc') {
-        throw new Error('Old .doc files can\'t be read here. Open it in Word or Google Docs and save it as .docx or PDF first.');
-      } else {
-        entries = parseText(await file.text());
+      for (let i = 0; i < files.length; i++) {
+        const file = files[i];
+        const label = files.length > 1 ? `Reading ${file.name} (${i + 1} of ${files.length})` : `Reading ${file.name}`;
+        ocrLabel = label;
+        showStatus(label + '…');
+        try {
+          const found = (await entriesFromFile(file, getWorker)).filter(x => x.num);
+          if (found.length) all.push(...found);
+          else empty.push(file.name);
+        } catch (err) {
+          problems.push(`${file.name}: ${err.message || 'could not be read'}`);
+        }
       }
+    } finally {
+      if (worker) worker.terminate();
+      ocrLabel = '';
       showStatus('');
-      if (!entries.filter(x => x.num).length) {
-        errEl.textContent = `No phone numbers found in ${file.name}.` +
-          (ext === 'pdf' ? ' If it is a scanned PDF, take a screenshot and use Read from photo.' : '');
-        return;
-      }
-      openReview(entries, 'From ' + file.name);
-    } catch (err) {
-      showStatus('');
-      errEl.textContent = err.message || 'Could not read that file.';
+    }
+
+    // The same number in two files is shown once, keeping the first name found.
+    const byNum = new Map();
+    all.forEach(x => {
+      if (!byNum.has(x.num)) byNum.set(x.num, { ...x });
+      else if (!byNum.get(x.num).name && x.name) byNum.get(x.num).name = x.name;
+    });
+
+    const notes = [];
+    if (empty.length) notes.push(`No numbers found in ${empty.join(', ')}.` +
+      (empty.some(n => /\.pdf$/i.test(n)) ? ' For a scanned PDF, take a screenshot and use Read from photo.' : ''));
+    if (problems.length) notes.push(problems.join('. ') + '.');
+    errEl.textContent = notes.join(' ');
+
+    if (byNum.size) {
+      const kind = files.every(f => f.type.startsWith('image/')) ? 'photos' : 'files';
+      const used = files.length - empty.length - problems.length;
+      const source = files.length === 1 ? 'From ' + files[0].name
+        : used === files.length ? `From ${files.length} ${kind}`
+        : `From ${used} of ${files.length} ${kind}`;
+      openReview([...byNum.values()], source);
     }
   }
 
   $('importBtn').addEventListener('click', () => $('importInput').click());
   $('photoBtn').addEventListener('click', () => $('photoInput').click());
   ['importInput', 'photoInput'].forEach(id => $(id).addEventListener('change', (e) => {
-    const file = e.target.files[0];
+    const files = [...e.target.files];
     e.target.value = '';
-    if (file) importFile(file);
+    if (files.length) importFiles(files);
   }));
 
   /* ---------- Templates ---------- */
