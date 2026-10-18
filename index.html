@@ -134,6 +134,21 @@
   input[type="file"] {
     padding: 8px;
   }
+  .cc-row { display: flex; align-items: center; gap: 8px; }
+  .cc-row .plus { font-size: 18px; font-weight: 700; color: var(--muted); }
+  .cc-row input { width: 90px; }
+  .queue { list-style: none; padding: 0; margin: 8px 0 6px; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
+  .queue li { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 9px 12px; border-top: 1px solid var(--line); font-size: 14px; }
+  .queue li:first-child { border-top: none; }
+  .queue li.bad { color: #a3312b; background: #fbf0ef; }
+  .queue li.done .num { color: var(--muted); text-decoration: line-through; }
+  .queue li.next { background: #eef6f1; font-weight: 600; }
+  .queue .num { font-variant-numeric: tabular-nums; }
+  .queue button { width: auto; margin: 0; padding: 6px 12px; font-size: 13px; }
+  .queue-head { display: flex; justify-content: space-between; align-items: baseline; font-size: 13px; color: var(--muted); margin-top: 16px; }
+  .linkbtn { background: none; color: var(--green); border: none; width: auto; padding: 0; margin: 0; font-size: 13px; font-weight: 600; text-decoration: underline; }
+  .linkbtn:hover { background: none; color: var(--green-dark); }
+  [hidden] { display: none !important; }
 </style>
 </head>
 <body>
@@ -144,9 +159,18 @@
     <p class="sub">No app install and no contact save. This uses WhatsApp's own link format — it works on any phone with WhatsApp installed.</p>
 
     <div class="field">
-      <label for="number">Phone number</label>
-      <input id="number" type="tel" placeholder="e.g. 919480909009" autocomplete="off">
-      <div class="hint">Country code + number, digits only, no + or leading 0.</div>
+      <label for="cc">Country code</label>
+      <div class="cc-row">
+        <span class="plus">+</span>
+        <input id="cc" type="tel" inputmode="numeric" maxlength="4" value="91" autocomplete="off">
+      </div>
+      <div class="hint">Added to every number below that doesn't already have one.</div>
+    </div>
+
+    <div class="field">
+      <label for="number">Phone number(s)</label>
+      <textarea id="number" inputmode="tel" placeholder="e.g. 9480909009, 9876543210, 9123456789" autocomplete="off" style="min-height:64px;"></textarea>
+      <div class="hint">One number, or several separated by commas. A number typed with + or 00 in front keeps its own country code.</div>
       <div class="error" id="numError"></div>
     </div>
 
@@ -157,6 +181,15 @@
 
     <button id="openBtn">Open chat in WhatsApp</button>
     <button id="callBtn" class="secondary">Open chat &amp; tap to call</button>
+
+    <div id="queueBox" hidden>
+      <div class="queue-head">
+        <span id="queueStatus"></span>
+        <button type="button" class="linkbtn" id="resetBtn">Clear &amp; start over</button>
+      </div>
+      <ul class="queue" id="queue"></ul>
+      <div class="hint">WhatsApp lets a link open only one chat at a time, and you tap Send inside each chat. After sending, come back here and tap the green button again for the next number.</div>
+    </div>
 
     <div class="divider"></div>
 
@@ -177,32 +210,171 @@
   const shareBtn = document.getElementById('shareBtn');
   const shareErr = document.getElementById('shareError');
 
-  function buildUrl() {
-    const raw = numberInput.value.replace(/[^0-9]/g, '');
-    errEl.textContent = '';
-    if (raw.length < 8) {
-      errEl.textContent = 'Enter a full number with country code (at least 8 digits).';
-      return null;
+  const ccInput = document.getElementById('cc');
+  const queueBox = document.getElementById('queueBox');
+  const queueEl = document.getElementById('queue');
+  const queueStatus = document.getElementById('queueStatus');
+  const resetBtn = document.getElementById('resetBtn');
+  const STORE = 'osr-wa-draft';
+
+  // Numbers already opened in WhatsApp during this batch.
+  let opened = new Set();
+
+  // Turns one typed entry into a full international number (digits only),
+  // or null if it can't be a valid WhatsApp number.
+  function normalize(entry, cc) {
+    const t = entry.trim();
+    let d = t.replace(/[^0-9]/g, '');
+    if (t.startsWith('+')) {
+      // already international
+    } else if (d.startsWith('00')) {
+      d = d.slice(2);
+    } else {
+      d = d.replace(/^0+/, '');          // drop trunk 0, e.g. 09480...
+      if (d.length <= 10) d = cc + d;    // local number, so add the country code
     }
-    const msg = encodeURIComponent(msgInput.value.trim());
-    return `https://wa.me/${raw}${msg ? '?text=' + msg : ''}`;
+    return d.length >= 8 && d.length <= 15 ? d : null;
   }
 
-  btn.addEventListener('click', () => {
-    const url = buildUrl();
-    if (url) window.open(url, '_blank');
-  });
+  // Reads the box and returns [{raw, num}], duplicates removed.
+  function parseNumbers() {
+    const cc = ccInput.value.replace(/[^0-9]/g, '');
+    const seen = new Set();
+    const list = [];
+    numberInput.value.split(/[,;\n]+/).forEach(raw => {
+      if (!raw.trim()) return;
+      const num = normalize(raw, cc);
+      if (num && seen.has(num)) return;
+      if (num) seen.add(num);
+      list.push({ raw: raw.trim(), num });
+    });
+    return list;
+  }
 
-  callBtn.addEventListener('click', () => {
-    const url = buildUrl();
-    if (url) window.open(url, '_blank');
-    // No call-specific link exists; this opens the same chat.
-    // The call icon still has to be tapped by hand inside WhatsApp.
+  function urlFor(num) {
+    const msg = encodeURIComponent(msgInput.value.trim());
+    return `https://wa.me/${num}${msg ? '?text=' + msg : ''}`;
+  }
+
+  // Kept on the phone so the list survives switching to WhatsApp and back.
+  function save() {
+    try {
+      localStorage.setItem(STORE, JSON.stringify({
+        cc: ccInput.value, numbers: numberInput.value,
+        msg: msgInput.value, opened: [...opened]
+      }));
+    } catch (e) {}
+  }
+
+  function load() {
+    try {
+      const d = JSON.parse(localStorage.getItem(STORE) || 'null');
+      if (!d) return;
+      ccInput.value = d.cc || '91';
+      numberInput.value = d.numbers || '';
+      msgInput.value = d.msg || '';
+      opened = new Set(d.opened || []);
+    } catch (e) {}
+  }
+
+  // Redraws the list and button label; returns the next number to open.
+  function render() {
+    const list = parseNumbers();
+    const good = list.filter(x => x.num);
+    const next = good.find(x => !opened.has(x.num));
+    errEl.textContent = '';
+
+    if (list.length < 2) {
+      queueBox.hidden = true;
+      callBtn.hidden = false;
+      btn.disabled = false;
+      btn.textContent = 'Open chat in WhatsApp';
+      return next;
+    }
+
+    queueBox.hidden = false;
+    callBtn.hidden = true;
+    queueEl.innerHTML = '';
+    list.forEach(x => {
+      const li = document.createElement('li');
+      const span = document.createElement('span');
+      span.className = 'num';
+      if (!x.num) {
+        li.className = 'bad';
+        span.textContent = x.raw + ' — not a valid number';
+        li.appendChild(span);
+      } else {
+        const done = opened.has(x.num);
+        li.className = done ? 'done' : (x === next ? 'next' : '');
+        span.textContent = '+' + x.num;
+        const b = document.createElement('button');
+        b.type = 'button';
+        b.className = 'secondary';
+        b.textContent = done ? 'Open again' : 'Open';
+        b.addEventListener('click', () => openNum(x.num));
+        li.append(span, b);
+      }
+      queueEl.appendChild(li);
+    });
+    const doneCount = good.filter(x => opened.has(x.num)).length;
+    queueStatus.textContent = `${doneCount} of ${good.length} opened`;
+    btn.disabled = !next;
+    btn.textContent = next
+      ? `Open chat ${good.indexOf(next) + 1} of ${good.length} in WhatsApp`
+      : 'All chats opened ✓';
+    return next;
+  }
+
+  function openNum(num) {
+    opened.add(num);
+    save();
+    render();
+    window.open(urlFor(num), '_blank');
+  }
+
+  function openNext() {
+    const list = parseNumbers();
+    if (!list.length) {
+      errEl.textContent = 'Enter at least one phone number.';
+      return;
+    }
+    if (list.length === 1) {
+      if (list[0].num) window.open(urlFor(list[0].num), '_blank');
+      else errEl.textContent = 'That doesn\'t look like a valid number. Check the country code and digits.';
+      return;
+    }
+    const next = render();
+    if (next) openNum(next.num);
+  }
+
+  btn.addEventListener('click', openNext);
+  // No call-specific link exists; this opens the same chat.
+  // The call icon still has to be tapped by hand inside WhatsApp.
+  callBtn.addEventListener('click', openNext);
+
+  // Changing the numbers or country code starts a fresh batch.
+  [numberInput, ccInput].forEach(el => el.addEventListener('input', () => {
+    opened.clear();
+    save();
+    render();
+  }));
+  msgInput.addEventListener('input', save);
+
+  resetBtn.addEventListener('click', () => {
+    opened.clear();
+    numberInput.value = '';
+    msgInput.value = '';
+    save();
+    render();
+    numberInput.focus();
   });
 
   numberInput.addEventListener('keydown', (e) => {
-    if (e.key === 'Enter') btn.click();
+    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); btn.click(); }
   });
+
+  load();
+  render();
 
   shareBtn.addEventListener('click', async () => {
     shareErr.textContent = '';
