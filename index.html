@@ -450,6 +450,19 @@
   const looksLandline = run => /^0[1-9]\d{1,2}[\s\-.\/]/.test(run.trim());
   const cleanName = s => s.replace(/[()]/g, '').replace(/^[\s:~\-–—.]+|[\s:~\-–—.]+$/g, '').trim();
 
+  // Words that label a number rather than name a person ("Mobile No: 94...").
+  const LABEL_WORDS = new Set(('mobile mob mo m cell cellphone phone ph p tel telephone t number num no nos nr ' +
+    'contact contacts call whatsapp wa sms landline home work office clinic reception emergency ' +
+    'alt alternate alternative primary other details detail or and of male female gender age').split(' '));
+
+  // Turns the words found next to a number into a name, or '' if they are only labels.
+  function guessName(text) {
+    const words = cleanName(text).replace(/[.:#\/]+/g, ' ').split(/\s+/)
+      .filter(w => w && !LABEL_WORDS.has(w.toLowerCase()));
+    const name = cleanName(words.join(' '));
+    return name.length <= 40 && /^[\p{L}][\p{L} .'-]*$/u.test(name) ? name : '';
+  }
+
   // Splits one comma-separated piece into number-like runs.
   // "9480909009 9876543210" (two numbers with a space) becomes two runs,
   // while "+91 94809 09009" stays one.
@@ -468,12 +481,13 @@
 
   const currentCc = () => ccInput.value.replace(/[^0-9]/g, '');
 
-  // Reads the numbers box.
-  function parseNumbers() { return parseText(numberInput.value); }
+  // Reads the numbers box. Here a name is only used when typed in brackets.
+  function parseNumbers() { return parseText(numberInput.value, false); }
 
   // Picks numbers out of any text and returns [{name, raw, num}], duplicates removed.
-  // Accepts "(Ramesh)9480909009", "Ramesh 9480909009" or "Ramesh<tab>9480909009".
-  function parseText(text) {
+  // A name comes from "(Ramesh)9480909009"; with guessNames on (pasted pages and
+  // imported files) "Ramesh 9480909009" or "Ramesh<tab>9480909009" works too.
+  function parseText(text, guessNames) {
     const cc = currentCc();
     const list = [];
     const byNum = new Map();
@@ -493,10 +507,7 @@
         if (/^[\s\d+\-.]{5,}$/.test(rest) && digitCount(rest) >= 5) list.push({ name, raw: piece.trim(), num: null });
         return;
       }
-      if (!br && runs.length === 1) {
-        const leftover = cleanName(rest.replace(runs[0], ' '));
-        if (/^[\p{L}][\p{L} .'-]*$/u.test(leftover)) name = leftover;
-      }
+      if (guessNames && !br && runs.length === 1) name = guessName(rest.replace(runs[0], ' '));
       runs.forEach((run, i) => {
         const num = normalize(run, cc);
         const entryName = i === 0 ? name : '';
@@ -694,7 +705,7 @@
   // the review panel; a single number is pasted into the box as normal.
   numberInput.addEventListener('paste', (e) => {
     const text = (e.clipboardData || window.clipboardData).getData('text') || '';
-    const found = parseText(text).filter(x => x.num);
+    const found = parseText(text, true).filter(x => x.num);
     if (found.length >= 2) {
       e.preventDefault();
       openReview(found, 'From what you pasted');
@@ -855,19 +866,26 @@
     return loaded[url];
   }
 
-  // Spreadsheet rows: the number cells become entries, and the first
-  // cell that looks like a name is used as the name.
+  // Spreadsheet rows: the number cells become entries. The name comes from a
+  // column headed "Name" if there is one, else the first cell that looks like a name.
   function rowsToEntries(rows) {
     const cc = currentCc();
     const out = [];
+    const asCells = row => row.map(c => (typeof c === 'number' ? String(Math.round(c)) : String(c == null ? '' : c)).trim());
+    let nameCol = -1;
     rows.forEach(row => {
-      const cells = row.map(c => (typeof c === 'number' ? String(Math.round(c)) : String(c == null ? '' : c)).trim());
-      const name = cells.find(c => c.length <= 40 && /^[\p{L}][\p{L} .'-]*$/u.test(c)) || '';
-      // Every number on a row belongs to the same person.
-      cells.forEach(c => numberRuns(c).forEach(run => {
-        const num = normalize(run, cc);
-        if (num) out.push({ name: cleanName(name), raw: run, num, landline: looksLandline(run) });
-      }));
+      const cells = asCells(row);
+      if (cells.some(c => numberRuns(c).length)) {
+        const name = nameCol >= 0 ? guessName(cells[nameCol] || '') : (cells.map(guessName).find(Boolean) || '');
+        // Every number on a row belongs to the same person.
+        cells.forEach(c => numberRuns(c).forEach(run => {
+          const num = normalize(run, cc);
+          if (num) out.push({ name, raw: run, num, landline: looksLandline(run) });
+        }));
+      } else if (nameCol < 0) {
+        // A header row: remember which column holds the name.
+        nameCol = cells.findIndex(c => /name/i.test(c));
+      }
     });
     // Remove repeats, keeping the first name seen.
     const seen = new Map();
@@ -926,7 +944,7 @@
   async function entriesFromFile(file, getWorker) {
     const ext = file.name.toLowerCase().includes('.') ? file.name.toLowerCase().split('.').pop() : '';
     if (file.type.startsWith('image/')) {
-      return parseText(await photoText(await getWorker(), file));
+      return parseText(await photoText(await getWorker(), file), true);
     } else if (['csv', 'xlsx', 'xls', 'ods'].includes(ext)) {
       await loadScript(LIBS.xlsx);
       const wb = XLSX.read(await file.arrayBuffer(), { type: 'array' });
@@ -935,15 +953,15 @@
     } else if (ext === 'vcf') {
       return vcfToEntries(await file.text());
     } else if (ext === 'pdf') {
-      return parseText(await pdfText(file));
+      return parseText(await pdfText(file), true);
     } else if (ext === 'docx') {
       await loadScript(LIBS.docx);
       const res = await mammoth.extractRawText({ arrayBuffer: await file.arrayBuffer() });
-      return parseText(res.value);
+      return parseText(res.value, true);
     } else if (ext === 'doc') {
       throw new Error('old .doc files can\'t be read — save it as .docx or PDF first');
     }
-    return parseText(await file.text());
+    return parseText(await file.text(), true);
   }
 
   async function importFiles(files) {
