@@ -385,7 +385,7 @@
   const STARTER_TEMPLATES = [
     { title: 'Appointment reminder', text: 'This is a reminder of your appointment with Dr Chetan M Dojode on [date] at [time]. Please bring your previous reports, X-rays and scans.', addons: { map: true } },
     { title: 'Reports ready', text: 'Your reports are ready. Please reply here or call the clinic to book a review appointment.', addons: {} },
-    { title: 'Post-op care', text: 'Please keep the dressing clean and dry, take your medicines as prescribed and keep the limb elevated. Contact us straight away if you have fever, increasing pain, swelling, redness or any discharge from the wound.', addons: {} },
+    { title: 'Review', text: 'Your Feedback Matters\n\nYou recently consulted Dr Chetan M Dojode, Orthopedic Surgeon.\n\nWe’d love to hear about your experience. Your Google review helps us improve and allows others to receive trusted care.\n\nPlease take a moment to share your feedback here:\n\nhttps://drchetanmd-ortho.github.io/opd-orthosportsrobotics/review.html?c=sparsh\n\nThank you for your time and support!', addons: {} },
     { title: 'Clinic location', text: 'Here is the location of our clinic.', addons: { map: true } },
     { title: 'Thank you', text: 'Thank you for visiting us. We hope you are feeling better.', addons: { review: true } }
   ];
@@ -408,6 +408,14 @@
 
   let settings = Object.assign({}, DEFAULT_SETTINGS, readJSON(KEY.settings, {}));
   let templates = readJSON(KEY.templates, null) || STARTER_TEMPLATES.map(t => ({ ...t }));
+  // Phones that saved templates before: swap the old Post-op care starter for Review.
+  if (templates.some(t => t.title === 'Post-op care' && t.text.startsWith('Please keep the dressing clean and dry'))) {
+    const review = STARTER_TEMPLATES.find(t => t.title === 'Review');
+    const i = templates.findIndex(t => t.title === 'Post-op care');
+    if (templates.some(t => t.title.toLowerCase() === 'review')) templates.splice(i, 1);
+    else templates[i] = { ...review };
+    writeJSON(KEY.templates, templates);
+  }
   let recent = readJSON(KEY.recent, []);
   // Numbers already opened in WhatsApp during this batch.
   let opened = new Set();
