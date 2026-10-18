@@ -383,9 +383,9 @@
   const isAndroid = /Android/i.test(navigator.userAgent);
 
   const STARTER_TEMPLATES = [
+    { title: 'Review', text: 'Your Feedback Matters\n\nYou recently consulted Dr Chetan M Dojode, Orthopedic Surgeon.\n\nWe’d love to hear about your experience. Your Google review helps us improve and allows others to receive trusted care.\n\nPlease take a moment to share your feedback here:\n\nhttps://drchetanmd-ortho.github.io/opd-orthosportsrobotics/review.html?c=sparsh\n\nThank you for your time and support!', addons: {} },
     { title: 'Appointment reminder', text: 'This is a reminder of your appointment with Dr Chetan M Dojode on [date] at [time]. Please bring your previous reports, X-rays and scans.', addons: { map: true } },
     { title: 'Reports ready', text: 'Your reports are ready. Please reply here or call the clinic to book a review appointment.', addons: {} },
-    { title: 'Review', text: 'Your Feedback Matters\n\nYou recently consulted Dr Chetan M Dojode, Orthopedic Surgeon.\n\nWe’d love to hear about your experience. Your Google review helps us improve and allows others to receive trusted care.\n\nPlease take a moment to share your feedback here:\n\nhttps://drchetanmd-ortho.github.io/opd-orthosportsrobotics/review.html?c=sparsh\n\nThank you for your time and support!', addons: {} },
     { title: 'Clinic location', text: 'Here is the location of our clinic.', addons: { map: true } },
     { title: 'Thank you', text: 'Thank you for visiting us. We hope you are feeling better.', addons: { review: true } }
   ];
@@ -416,6 +416,12 @@
     else templates[i] = { ...review };
     writeJSON(KEY.templates, templates);
   }
+  // Review always sits first.
+  function reviewFirst() {
+    const i = templates.findIndex(t => t.title.toLowerCase() === 'review');
+    if (i > 0) templates.unshift(templates.splice(i, 1)[0]);
+  }
+  reviewFirst();
   let recent = readJSON(KEY.recent, []);
   // Numbers already opened in WhatsApp during this batch.
   let opened = new Set();
@@ -971,7 +977,7 @@
 
   /* ---------- Templates ---------- */
 
-  function saveTemplates() { writeJSON(KEY.templates, templates); }
+  function saveTemplates() { reviewFirst(); writeJSON(KEY.templates, templates); }
 
   function renderChips() {
     const box = $('chips');
